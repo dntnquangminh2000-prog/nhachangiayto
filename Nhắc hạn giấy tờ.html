@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="StayReady">
+    <meta name="theme-color" content="#4c9a9f">
+    
+    <!-- Dynamic Manifest Link -->
+    <link id="manifest-link" rel="manifest" href="">
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="">
+
+    <title>StayReady Nhắc Hạn</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+        
+        #app-container {
+            width: 100%;
+            max-width: 430px; /* Kích thước chuẩn iPhone Pro Max */
+            height: 100vh;
+            height: 100dvh;
+            background-color: #F3F9F9;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .header-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 200px;
+            background: linear-gradient(135deg, #d8f3f6 0%, #a4e0e4 100%);
+            border-bottom-left-radius: 40px;
+            border-bottom-right-radius: 40px;
+            z-index: 0;
+        }
+
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content-bottom { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .modal-content-center { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .page-enter { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4c9a9f',
+                        warningRed: '#ef4444',
+                        warningOrange: '#f97316',
+                        safeGreen: '#10b981'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="app-container">
+        <div class="header-bg"></div>
+
+        <!-- Header -->
+        <header class="relative z-10 pt-14 pb-4 px-6 flex justify-between items-center">
+            <div id="header-title-area">
+                <div class="bg-white/40 text-primary text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-full inline-block mb-1 shadow-sm">StayReady Family</div>
+                <h1 class="text-2xl font-bold text-slate-800" id="header-title">Việc cần làm</h1>
+            </div>
+            <button id="back-btn" class="hidden text-slate-800 p-2.5 bg-white/60 rounded-full backdrop-blur-md shadow-sm active:scale-90 transition-transform" onclick="app.goBack()">
+                <i class="ph-bold ph-arrow-left text-lg"></i>
+            </button>
+            <button id="noti-btn" class="text-slate-800 p-2.5 bg-white/60 rounded-full backdrop-blur-md shadow-sm active:scale-90 transition-transform hidden" onclick="pwa.requestNotificationPermission()">
+                <i class="ph-bold ph-bell-ringing text-lg text-primary"></i>
+            </button>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main-content" class="relative z-10 flex-1 overflow-y-auto hide-scrollbar px-6 pb-28 page-enter">
+            <!-- Rendered by JS -->
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 pb-8 z-20 flex justify-around items-center rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+            <button onclick="app.switchTab('home')" class="nav-btn flex flex-col items-center p-2 text-primary w-1/2 group" data-tab="home">
+                <div class="p-1.5 rounded-xl group-hover:bg-slate-50 transition-colors">
+                    <i class="ph-fill ph-house text-2xl mb-1 block text-center"></i>
+                    <span class="text-[10px] font-semibold block text-center">Trang chủ</span>
+                </div>
+            </button>
+            <button onclick="app.switchTab('family')" class="nav-btn flex flex-col items-center p-2 text-slate-400 w-1/2 group" data-tab="family">
+                <div class="p-1.5 rounded-xl group-hover:bg-slate-50 transition-colors">
+                    <i class="ph ph-users text-2xl mb-1 block text-center"></i>
+                    <span class="text-[10px] font-semibold block text-center">Gia đình</span>
+                </div>
+            </button>
+        </nav>
+
+        <!-- Modal: Add Person -->
+        <div id="modal-add-person" class="fixed inset-0 z-50 hidden flex-col justify-end">
+            <div class="modal-overlay absolute inset-0" onclick="ui.closeModal('modal-add-person')"></div>
+            <div class="modal-content-bottom bg-white rounded-t-3xl p-6 relative z-10 pb-10">
+                <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                <h2 class="text-xl font-bold mb-5 text-slate-800">Thêm thành viên</h2>
+                <form id="form-add-person" onsubmit="event.preventDefault(); app.addPerson();">
+                    <div class="mb-5 flex flex-col items-center">
+                        <label for="person-avatar" class="relative cursor-pointer group">
+                            <div class="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
+                                <img id="avatar-preview" src="" class="w-full h-full object-cover hidden" alt="Avatar">
+                                <i id="avatar-icon" class="ph ph-camera text-2xl text-slate-400 group-hover:text-primary transition-colors"></i>
+                            </div>
+                            <div class="absolute bottom-0 right-0 bg-primary text-white p-1.5 rounded-full shadow-md">
+                                <i class="ph-bold ph-plus text-xs"></i>
+                            </div>
+                        </label>
+                        <input type="file" id="person-avatar" accept="image/*" class="hidden" onchange="ui.handleAvatarSelect(event)">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Tên thành viên</label>
+                        <input type="text" id="person-name" required class="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 font-medium" placeholder="Nguyễn Văn A">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Vai trò / Quan hệ</label>
+                        <input type="text" id="person-role" required class="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 font-medium" placeholder="VD: Bản thân, Vợ, Con...">
+                    </div>
+                    <button type="submit" class="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-[0_4px_15px_rgba(76,154,159,0.4)] active:scale-95 transition-transform">Lưu thông tin</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal: Add Document -->
+        <div id="modal-add-doc" class="fixed inset-0 z-50 hidden flex-col justify-end">
+            <div class="modal-overlay absolute inset-0" onclick="ui.closeModal('modal-add-doc')"></div>
+            <div class="modal-content-bottom bg-white rounded-t-3xl p-6 relative z-10 pb-10">
+                <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                <h2 class="text-xl font-bold mb-5 text-slate-800">Thêm giấy tờ</h2>
+                <form id="form-add-doc" onsubmit="event.preventDefault(); app.addDocument();">
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Loại giấy tờ</label>
+                        <input type="text" id="doc-name" required class="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 font-medium" placeholder="VD: Visa Nhật, Passport...">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Ngày hết hạn</label>
+                        <input type="date" id="doc-expiry" required class="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-slate-50 font-medium">
+                    </div>
+                    <button type="submit" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-transform">Lưu giấy tờ</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal: Confirm Delete -->
+        <div id="modal-confirm" class="fixed inset-0 z-[60] hidden flex-col justify-center items-center px-4">
+            <div class="modal-overlay absolute inset-0"></div>
+            <div class="modal-content-center bg-white rounded-3xl p-6 relative z-10 w-full max-w-sm shadow-2xl text-center">
+                <div class="w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-4">
+                    <i class="ph-fill ph-warning-octagon text-4xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2" id="confirm-title">Xác nhận</h3>
+                <p class="text-sm text-slate-500 mb-6" id="confirm-msg">Hành động này không thể hoàn tác.</p>
+                <div class="flex gap-3">
+                    <button onclick="ui.closeConfirm()" class="flex-1 bg-slate-100 text-slate-700 font-bold py-3.5 rounded-xl active:bg-slate-200 transition-colors">Huỷ</button>
+                    <button onclick="ui.executeConfirm()" class="flex-1 bg-red-500 text-white font-bold py-3.5 rounded-xl active:bg-red-600 transition-colors shadow-md">Xoá</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        const STORAGE_KEY = 'stayready_pwa_data_v1';
+
+        /* =========================================
+           PWA & NOTIFICATION LOGIC (Single File Magic)
+           ========================================= */
+        const pwa = {
+            init: function() {
+                this.generateManifest();
+                this.registerServiceWorker();
+                this.checkNotificationStatus();
+                
+                // Check notifications periodically (if app is open)
+                setInterval(() => this.checkAndNotifyExpiringDocs(), 60000 * 60 * 12); // every 12 hours
+                // Check right away when loaded
+                setTimeout(() => this.checkAndNotifyExpiringDocs(), 2000);
+            },
+
+            // Create an icon dynamically using Data URI SVG
+            getAppIcon: function() {
+                const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%234c9a9f' rx='20'/><path d='M30,50 L45,65 L70,35' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>`;
+                return `data:image/svg+xml;charset=utf-8,${svg}`;
+            },
+
+            generateManifest: function() {
+                const iconUrl = this.getAppIcon();
+                document.getElementById('apple-touch-icon').href = iconUrl;
+
+                const manifest = {
+                    name: "StayReady Nhắc Hạn",
+                    short_name: "StayReady",
+                    start_url: location.href.split('?')[0],
+                    display: "standalone",
+                    background_color: "#F3F9F9",
+                    theme_color: "#4c9a9f",
+                    description: "Quản lý và nhắc nhở hạn giấy tờ offline.",
+                    icons: [{
+                        src: iconUrl,
+                        sizes: "512x512",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    }]
+                };
+
+                const blob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+                const manifestUrl = URL.createObjectURL(blob);
+                document.getElementById('manifest-link').setAttribute('href', manifestUrl);
+            },
+
+            registerServiceWorker: function() {
+                if ('serviceWorker' in navigator) {
+                    const swCode = `
+                        const CACHE_NAME = 'stayready-cache-v1';
+                        self.addEventListener('install', (event) => {
+                            self.skipWaiting();
+                            event.waitUntil(
+                                caches.open(CACHE_NAME).then((cache) => {
+                                    return cache.addAll([location.href]);
+                                })
+                            );
+                        });
+                        self.addEventListener('fetch', (event) => {
+                            event.respondWith(
+                                caches.match(event.request).then((response) => {
+                                    return response || fetch(event.request).catch(() => caches.match(location.href));
+                                })
+                            );
+                        });
+                    `;
+                    const blob = new Blob([swCode], {type: 'application/javascript'});
+                    const swUrl = URL.createObjectURL(blob);
+                    
+                    navigator.serviceWorker.register(swUrl)
+                        .then(reg => console.log('PWA Service Worker Đã Đăng Ký Offline!'))
+                        .catch(err => console.log('Lỗi SW:', err));
+                }
+            },
+
+            checkNotificationStatus: function() {
+                const notiBtn = document.getElementById('noti-btn');
+                if (!("Notification" in window)) return;
+                
+                if (Notification.permission === "default") {
+                    notiBtn.classList.remove('hidden');
+                } else {
+                    notiBtn.classList.add('hidden');
+                }
+            },
+
+            requestNotificationPermission: function() {
+                if (!("Notification" in window)) {
+                    alert("Trình duyệt của bạn không hỗ trợ thông báo.");
+                    return;
+                }
+                Notification.requestPermission().then(permission => {
+                    this.checkNotificationStatus();
+                    if (permission === "granted") {
+                        this.triggerNotification("Cài đặt thành công", "StayReady sẽ nhắc bạn khi có giấy tờ sắp hết hạn.");
+                        this.checkAndNotifyExpiringDocs();
+                    } else if (permission === 'denied') {
+                        alert("Bạn đã từ chối thông báo. Hãy bật trong cài đặt thiết bị để nhận nhắc nhở.");
+                    }
+                });
+            },
+
+            triggerNotification: function(title, body) {
+                if (Notification.permission === "granted") {
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+                        navigator.serviceWorker.ready.then(reg => {
+                            reg.showNotification(title, {
+                                body: body,
+                                icon: this.getAppIcon(),
+                                badge: this.getAppIcon(),
+                                vibrate: [200, 100, 200]
+                            });
+                        });
+                    } else {
+                        new Notification(title, { body: body, icon: this.getAppIcon() });
+                    }
+                }
+            },
+
+            checkAndNotifyExpiringDocs: function() {
+                const lastCheck = localStorage.getItem('stayready_last_noti_date');
+                const todayStr = new Date().toDateString();
+                
+                // Chỉ thông báo 1 lần mỗi ngày để tránh phiền
+                if (lastCheck === todayStr) return; 
+
+                let urgentCount = 0;
+                let expiredCount = 0;
+
+                app.data.persons.forEach(person => {
+                    person.documents.forEach(doc => {
+                        const status = app.getDocStatus(doc.expiryDate);
+                        if (status.status === 'expired') expiredCount++;
+                        if (status.status === 'urgent') urgentCount++;
+                    });
+                });
+
+                if (expiredCount > 0 || urgentCount > 0) {
+                    let msg = "";
+                    if (expiredCount > 0) msg += `Bạn có ${expiredCount} giấy tờ ĐÃ HẾT HẠN. `;
+                    if (urgentCount > 0) msg += `Có ${urgentCount} giấy tờ sắp hết hạn dưới 30 ngày.`;
+                    
+                    this.triggerNotification("Cảnh báo Giấy tờ StayReady", msg);
+                    localStorage.setItem('stayready_last_noti_date', todayStr);
+                }
+            }
+        };
+
+        /* =========================================
+           UI & APP LOGIC
+           ========================================= */
+        const ui = {
+            currentAvatarBase64: null,
+            confirmCallback: null,
+
+            openAddPerson: function() {
+                this.currentAvatarBase64 = null;
+                document.getElementById('avatar-preview').src = "";
+                document.getElementById('avatar-preview').classList.add('hidden');
+                document.getElementById('avatar-icon').classList.remove('hidden');
+                document.getElementById('form-add-person').reset();
+                this.openModal('modal-add-person');
+            },
+
+            handleAvatarSelect: function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        ui.currentAvatarBase64 = e.target.result;
+                        const preview = document.getElementById('avatar-preview');
+                        preview.src = ui.currentAvatarBase64;
+                        preview.classList.remove('hidden');
+                        document.getElementById('avatar-icon').classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file); // Convert to base64
+                }
+            },
+
+            openAddDoc: function() {
+                document.getElementById('form-add-doc').reset();
+                this.openModal('modal-add-doc');
+            },
+
+            openModal: function(modalId) {
+                const modal = document.getElementById(modalId);
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            },
+
+            closeModal: function(modalId) {
+                document.getElementById(modalId).classList.add('hidden');
+                document.getElementById(modalId).classList.remove('flex');
+            },
+
+            showConfirm: function(title, message, callback) {
+                document.getElementById('confirm-title').innerText = title;
+                document.getElementById('confirm-msg').innerText = message;
+                this.confirmCallback = callback;
+                this.openModal('modal-confirm');
+            },
+
+            closeConfirm: function() {
+                this.closeModal('modal-confirm');
+                this.confirmCallback = null;
+            },
+
+            executeConfirm: function() {
+                if (this.confirmCallback) this.confirmCallback();
+                this.closeConfirm();
+            }
+        };
+
+        const app = {
+            data: { persons: [] },
+            currentTab: 'home',
+            currentView: 'home',
+            selectedPersonId: null,
+
+            init: function() {
+                this.loadData();
+                this.render();
+            },
+
+            loadData: function() {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    try {
+                        this.data = JSON.parse(stored);
+                    } catch(e) { this.data = { persons: [] }; }
+                }
+            },
+
+            saveData: function() {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
+            },
+
+            generateId: function() { return Date.now().toString(36) + Math.random().toString(36).substr(2); },
+
+            switchTab: function(tab) {
+                if (this.currentTab === tab && this.currentView === tab) return;
+                this.currentTab = tab;
+                this.currentView = tab;
+                this.selectedPersonId = null;
+                
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    const icon = btn.querySelector('i');
+                    if (btn.dataset.tab === tab) {
+                        btn.classList.add('text-primary'); btn.classList.remove('text-slate-400');
+                        icon.classList.add('ph-fill'); icon.classList.remove('ph');
+                    } else {
+                        btn.classList.remove('text-primary'); btn.classList.add('text-slate-400');
+                        icon.classList.remove('ph-fill'); icon.classList.add('ph');
+                    }
+                });
+                this.render();
+            },
+
+            goBack: function() {
+                if (this.currentView === 'person_detail') {
+                    this.currentView = 'family';
+                    this.selectedPersonId = null;
+                    this.render();
+                }
+            },
+
+            goToPerson: function(personId) {
+                this.selectedPersonId = personId;
+                this.currentView = 'person_detail';
+                this.render();
+            },
+
+            addPerson: function() {
+                const name = document.getElementById('person-name').value.trim();
+                const role = document.getElementById('person-role').value.trim();
+                if(!name) return;
+                this.data.persons.push({
+                    id: this.generateId(),
+                    name: name,
+                    role: role,
+                    avatar: ui.currentAvatarBase64,
+                    documents: []
+                });
+                this.saveData();
+                ui.closeModal('modal-add-person');
+                this.render();
+            },
+
+            deletePerson: function(personId) {
+                ui.showConfirm(
+                    "Xoá thành viên", 
+                    "Toàn bộ giấy tờ của người này cũng sẽ bị xoá. Bạn chắc chắn chứ?",
+                    () => {
+                        this.data.persons = this.data.persons.filter(p => p.id !== personId);
+                        this.saveData();
+                        this.goBack();
+                    }
+                );
+            },
+
+            addDocument: function() {
+                if (!this.selectedPersonId) return;
+                const name = document.getElementById('doc-name').value.trim();
+                const expiryDate = document.getElementById('doc-expiry').value;
+                if(!name || !expiryDate) return;
+
+                const person = this.data.persons.find(p => p.id === this.selectedPersonId);
+                if (person) {
+                    person.documents.push({ id: this.generateId(), name: name, expiryDate: expiryDate });
+                    this.saveData();
+                    ui.closeModal('modal-add-doc');
+                    this.render();
+                }
+            },
+
+            deleteDocument: function(personId, docId) {
+                ui.showConfirm(
+                    "Xoá giấy tờ", "Bạn có chắc muốn xoá giấy tờ này khỏi danh sách?",
+                    () => {
+                        const person = this.data.persons.find(p => p.id === personId);
+                        if (person) {
+                            person.documents = person.documents.filter(d => d.id !== docId);
+                            this.saveData();
+                            this.render();
+                        }
+                    }
+                );
+            },
+
+            getDocStatus: function(expiryDateStr) {
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const expiry = new Date(expiryDateStr);
+                const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+                
+                if (diffDays < 0) return { status: 'expired', label: `Đã hết hạn ${Math.abs(diffDays)} ngày`, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-500' };
+                if (diffDays === 0) return { status: 'urgent', label: 'Hết hạn hôm nay', color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-500' };
+                if (diffDays <= 30) return { status: 'urgent', label: `Còn ${diffDays} ngày`, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-400' };
+                return { status: 'safe', label: `Còn ${diffDays} ngày`, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-400' };
+            },
+
+            formatDate: function(dateStr) {
+                const parts = dateStr.split('-');
+                if(parts.length !== 3) return dateStr;
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            },
+
+            render: function() {
+                const mainEl = document.getElementById('main-content');
+                const titleEl = document.getElementById('header-title');
+                const backBtn = document.getElementById('back-btn');
+                const headerTitleArea = document.getElementById('header-title-area');
+                
+                mainEl.classList.remove('page-enter');
+                void mainEl.offsetWidth; // trigger reflow
+                mainEl.classList.add('page-enter');
+
+                if (this.currentView === 'home') {
+                    titleEl.innerText = "Tổng quan";
+                    backBtn.classList.add('hidden');
+                    headerTitleArea.classList.remove('hidden');
+                    mainEl.innerHTML = this.buildHomeHTML();
+                } else if (this.currentView === 'family') {
+                    titleEl.innerText = "Gia đình";
+                    backBtn.classList.add('hidden');
+                    headerTitleArea.classList.remove('hidden');
+                    mainEl.innerHTML = this.buildFamilyHTML();
+                } else if (this.currentView === 'person_detail') {
+                    headerTitleArea.classList.add('hidden');
+                    backBtn.classList.remove('hidden');
+                    const person = this.data.persons.find(p => p.id === this.selectedPersonId);
+                    mainEl.innerHTML = this.buildPersonDetailHTML(person);
+                }
+            },
+
+            buildHomeHTML: function() {
+                let allDocs = [];
+                this.data.persons.forEach(person => {
+                    person.documents.forEach(doc => {
+                        allDocs.push({ ...doc, personId: person.id, personName: person.name, avatar: person.avatar, statusInfo: this.getDocStatus(doc.expiryDate) });
+                    });
+                });
+
+                allDocs.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+                const urgentDocs = allDocs.filter(d => d.statusInfo.status === 'expired' || d.statusInfo.status === 'urgent');
+                const safeDocs = allDocs.filter(d => d.statusInfo.status === 'safe');
+
+                let pwaWarning = '';
+                // iOS Detect (show instruction to Add to Home Screen if in Safari but not standalone)
+                const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+                if (isIos && !isStandalone) {
+                    pwaWarning = `
+                    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6 flex items-start gap-3">
+                        <i class="ph-fill ph-apple-logo text-blue-500 text-xl mt-0.5"></i>
+                        <div>
+                            <p class="text-xs font-semibold text-blue-800 mb-1">Cài đặt App (iOS)</p>
+                            <p class="text-[10px] text-blue-600">Bấm <i class="ph-bold ph-export inline"></i> Chia sẻ -> "Thêm vào MH chính" để dùng offline và nhận thông báo.</p>
+                        </div>
+                    </div>`;
+                }
+
+                let html = `${pwaWarning}
+                    <div class="mb-4">
+                        <h2 class="text-xl font-bold text-slate-800 mb-5">Việc cần lưu ý</h2>
+                `;
+
+                // URGENT SECTION
+                html += `<div class="flex items-center gap-2 mb-3"><div class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div><h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Khẩn cấp</h3></div>`;
+
+                if (urgentDocs.length === 0) {
+                    html += `<div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center flex flex-col items-center mb-6">
+                        <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-2"><i class="ph-bold ph-check text-xl"></i></div>
+                        <p class="text-sm font-semibold text-slate-700">Tuyệt vời!</p>
+                        <p class="text-xs text-slate-400">Không có giấy tờ nào sắp hết hạn.</p>
+                    </div>`;
+                } else {
+                    html += `<div class="space-y-3 mb-6">`;
+                    urgentDocs.forEach(doc => {
+                        const s = doc.statusInfo;
+                        let avatarHtml = doc.avatar ? `<img src="${doc.avatar}" class="w-7 h-7 rounded-full object-cover">` : `<div class="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center"><i class="ph-fill ph-user text-xs"></i></div>`;
+                        let badgeClass = s.status === 'expired' ? 'bg-red-500 text-white' : 'bg-orange-100 text-orange-600';
+                        
+                        html += `
+                        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative overflow-hidden cursor-pointer active:scale-[0.98] transition-transform" onclick="app.goToPerson('${doc.personId}')">
+                            <div class="absolute left-0 top-0 bottom-0 w-1.5 ${s.border}"></div>
+                            <div class="flex justify-between items-center pl-2">
+                                <div class="flex items-center gap-3">
+                                    ${avatarHtml}
+                                    <div>
+                                        <h4 class="font-bold text-slate-800 text-sm">${doc.personName}</h4>
+                                        <p class="text-xs font-medium text-slate-500">${doc.name}</p>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full ${badgeClass} inline-block mb-1">${s.status === 'expired' ? 'Hết hạn' : 'Sắp hết'}</span>
+                                    <p class="text-[11px] font-bold ${s.color}">${s.label}</p>
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                // SAFE SECTION
+                html += `<div class="flex items-center gap-2 mb-3 mt-8"><div class="w-2 h-2 rounded-full bg-emerald-400"></div><h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Đang hiệu lực</h3></div>`;
+
+                if (safeDocs.length === 0) {
+                    html += `<div class="bg-white/50 rounded-2xl p-4 border border-dashed border-slate-200 text-center text-slate-400 text-xs font-medium">Chưa có dữ liệu an toàn.</div>`;
+                } else {
+                    html += `<div class="space-y-3">`;
+                    safeDocs.forEach(doc => {
+                        let avatarHtml = doc.avatar ? `<img src="${doc.avatar}" class="w-6 h-6 rounded-full object-cover">` : `<div class="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center"><i class="ph-fill ph-user text-[10px]"></i></div>`;
+                        html += `
+                        <div class="bg-white rounded-2xl p-3.5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-50 cursor-pointer flex items-center justify-between" onclick="app.goToPerson('${doc.personId}')">
+                            <div class="flex items-center gap-3">
+                                ${avatarHtml}
+                                <div>
+                                    <h4 class="font-semibold text-slate-700 text-sm">${doc.personName} <span class="text-slate-400 font-normal">· ${doc.name}</span></h4>
+                                </div>
+                            </div>
+                            <span class="text-[10px] font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">${this.formatDate(doc.expiryDate)}</span>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+                html += `</div>`;
+                return html;
+            },
+
+            buildFamilyHTML: function() {
+                let html = `<div class="mb-4"><h2 class="text-xl font-bold text-slate-800 mb-5">Danh sách thành viên</h2><div class="space-y-3">`;
+
+                if(this.data.persons.length === 0) {
+                    html += `<div class="bg-white/50 rounded-3xl p-8 border border-dashed border-primary/30 text-center">
+                        <i class="ph-fill ph-users-three text-4xl text-primary/40 mb-2 block"></i>
+                        <p class="text-slate-500 font-medium text-sm">Chưa có ai trong gia đình.</p>
+                    </div>`;
+                }
+
+                this.data.persons.forEach(person => {
+                    let alertDot = '';
+                    let hasIssue = person.documents.some(d => {
+                        const st = this.getDocStatus(d.expiryDate).status;
+                        return st === 'expired' || st === 'urgent';
+                    });
+                    if(hasIssue) alertDot = `<div class="w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white absolute bottom-0 right-0"></div>`;
+
+                    let avatarHtml = person.avatar 
+                        ? `<img src="${person.avatar}" class="w-14 h-14 rounded-full object-cover shadow-sm">`
+                        : `<div class="w-14 h-14 rounded-full bg-gradient-to-tr from-primary/20 to-primary/5 flex items-center justify-center text-primary text-2xl shadow-sm"><i class="ph-fill ph-user"></i></div>`;
+
+                    html += `
+                    <div class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex items-center justify-between active:scale-[0.98] transition-transform cursor-pointer" onclick="app.goToPerson('${person.id}')">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">${avatarHtml}${alertDot}</div>
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-base">${person.name}</h4>
+                                <p class="text-xs font-semibold text-primary/80 mb-1">${person.role}</p>
+                                <p class="text-[11px] text-slate-400 font-medium">${person.documents.length} giấy tờ</p>
+                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+                            <i class="ph-bold ph-caret-right"></i>
+                        </div>
+                    </div>`;
+                });
+
+                html += `</div>
+                    <button onclick="ui.openAddPerson()" class="w-full mt-6 flex items-center justify-center gap-2 bg-white border-2 border-dashed border-primary/50 text-primary font-bold py-4 rounded-2xl shadow-sm hover:bg-primary/5 active:scale-95 transition-all">
+                        <i class="ph-bold ph-plus text-lg"></i> Thêm thành viên
+                    </button>
+                </div>`;
+                return html;
+            },
+
+            buildPersonDetailHTML: function(person) {
+                if (!person) return '';
+                const sortedDocs = [...person.documents].map(doc => {
+                    return { ...doc, statusInfo: this.getDocStatus(doc.expiryDate) };
+                }).sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+
+                let avatarHtml = person.avatar 
+                    ? `<img src="${person.avatar}" class="w-24 h-24 rounded-full object-cover shadow-lg mx-auto mb-4 border-4 border-white">`
+                    : `<div class="w-24 h-24 rounded-full bg-white flex items-center justify-center text-primary text-5xl mx-auto mb-4 shadow-lg"><i class="ph-fill ph-user"></i></div>`;
+
+                let html = `
+                    <div class="text-center mb-8 pt-2 relative">
+                        <button onclick="app.deletePerson('${person.id}')" class="absolute top-0 right-0 w-10 h-10 bg-red-50 rounded-full flex items-center justify-center text-red-500 hover:bg-red-100 shadow-sm active:scale-90 transition-all">
+                            <i class="ph-fill ph-trash text-lg"></i>
+                        </button>
+                        ${avatarHtml}
+                        <h2 class="text-2xl font-bold text-slate-800">${person.name}</h2>
+                        <span class="inline-block bg-primary/10 text-primary text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-full mt-2">${person.role}</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Hồ sơ giấy tờ</h3>
+                        <span class="text-xs font-semibold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">${sortedDocs.length}</span>
+                    </div>
+                `;
+
+                if (sortedDocs.length === 0) {
+                    html += `<div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 text-center">
+                        <i class="ph-fill ph-folder-open text-5xl text-slate-200 mb-3 block"></i>
+                        <p class="text-slate-500 text-sm font-medium">Chưa có giấy tờ nào.</p>
+                    </div>`;
+                } else {
+                    html += `<div class="space-y-4">`;
+                    sortedDocs.forEach(doc => {
+                        const s = doc.statusInfo;
+                        let badgeHtml = s.status === 'expired' ? `<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-600">Đã hết hạn</span>` 
+                                      : (s.status === 'urgent' ? `<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-600">Sắp hết hạn</span>`
+                                      : `<span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-600">An toàn</span>`);
+                        
+                        html += `
+                        <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative group overflow-hidden border-l-4 ${s.border}">
+                            <button onclick="app.deleteDocument('${person.id}', '${doc.id}')" class="absolute top-5 right-5 text-slate-300 hover:text-red-500 active:scale-90 transition-transform bg-slate-50 p-2 rounded-full">
+                                <i class="ph-fill ph-trash"></i>
+                            </button>
+                            <div class="mb-3">${badgeHtml}</div>
+                            <h4 class="font-bold text-slate-800 text-lg pr-10 mb-4">${doc.name}</h4>
+                            <div class="flex justify-between items-end bg-slate-50 p-3 rounded-2xl">
+                                <div>
+                                    <p class="text-[10px] text-slate-400 uppercase font-bold mb-1">Ngày hết hạn</p>
+                                    <p class="text-sm font-bold text-slate-700"><i class="ph-fill ph-calendar-blank text-primary mr-1"></i> ${this.formatDate(doc.expiryDate)}</p>
+                                </div>
+                                <p class="text-xs font-bold ${s.color}">${s.label}</p>
+                            </div>
+                        </div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                html += `
+                    <button onclick="ui.openAddDoc()" class="w-full mt-6 flex items-center justify-center gap-2 bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-xl shadow-slate-200 active:scale-95 transition-all">
+                        <i class="ph-bold ph-plus text-lg"></i> Thêm giấy tờ
+                    </button>
+                `;
+                return html;
+            }
+        };
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            app.init();
+            pwa.init(); // Init Service Worker & Notifications
+        });
+    </script>
+</body>
+</html>
